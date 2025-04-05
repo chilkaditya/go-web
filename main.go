@@ -20,49 +20,81 @@ var albums = []album{
 func main()  {
 	router := gin.Default()
 
+	router.LoadHTMLGlob("templates/*")
 	// Serve the landing page
-	router.GET("/", func(c *gin.Context) {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(`
-			<!DOCTYPE html>
-			<html>
-			<head>
-				<title>Welcome</title>
-			</head>
-			<body>
-				<h1>Welcome to the Landing Page</h1>
-				<p>This is a simple HTML landing page.</p>
-			</body>
-			</html>
-		`))
+	router.GET("/",func (c *gin.Context)  {
+		c.HTML(http.StatusOK,"index.html",nil)
 	})
+	
 	router.GET("/albums",getAlbums)
-	router.POST("/albums",postAlbum)
 	router.GET("/albums/:id",getAlbumbyID)
+	router.POST("/albums",createAlbum)
+	router.PATCH("/albums/:id", updateAlbum)
+	router.DELETE("/albums/:id",deleteAlbum)
+	
 
 	router.Run("localhost:8000")
 }
 
 func getAlbums(c *gin.Context)  {
-	c.IndentedJSON(http.StatusOK,albums)
+	c.JSON(http.StatusOK,albums)
 }
 
-func postAlbum(c *gin.Context)  {
+func createAlbum(c *gin.Context)  {
 	var newAlbum album;
 	if err := c.BindJSON(&newAlbum); err != nil {
 		return
 	}
 	albums = append(albums,newAlbum)
-	c.IndentedJSON(http.StatusCreated,newAlbum)
+	c.JSON(http.StatusCreated,newAlbum)
 }
 
 func getAlbumbyID(c *gin.Context) {
 	id := c.Param("id")
-
 	for _,a := range(albums) {
 		if a.Id == id {
-			c.IndentedJSON(http.StatusOK,a)
+			c.JSON(http.StatusOK,a)
 			return
 		}
 	}
-	c.IndentedJSON(http.StatusNotFound,gin.H{"message":"album not found"})
+	c.JSON(http.StatusNotFound,gin.H{"message":"album not found"})
 }	
+
+func updateAlbum(c *gin.Context)  {
+	var newAlbum album
+	id := c.Param("id")
+	if err := c.BindJSON(&newAlbum); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+	for i,a := range(albums) {
+		if a.Id == id {
+			// Only update fields if they're non-zero (basic check)
+			if newAlbum.Title != "" {
+				albums[i].Title = newAlbum.Title
+			}
+			if newAlbum.Artist != "" {
+				albums[i].Artist = newAlbum.Artist
+			}
+			if newAlbum.Price != 0 {
+				albums[i].Price = newAlbum.Price
+			}
+			c.JSON(http.StatusOK, albums[i])
+			return
+		}
+	}
+	c.JSON(http.StatusNotFound,gin.H{"message":"album not found"})
+
+}
+
+func deleteAlbum(c *gin.Context)  {
+	id := c.Param("id")
+	for i,a := range(albums) {
+		if a.Id == id {
+			albums = append(albums[:i], albums[i+1:]...)
+			c.JSON(http.StatusOK,gin.H{"message": "Album deleted"})
+			return
+		}
+	}
+	c.JSON(http.StatusNotFound,gin.H{"message":"album not found"})
+}
