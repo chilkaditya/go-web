@@ -4,18 +4,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type album struct{
+type MusicAlbum struct{
 	Id string `json:"id`
 	Title string `json:title`
 	Artist string `json:artist`
-	Price float64 `json:price`
+	Movie_name string `json:movie_name`
+	Language string `json:language`
+	// Actor_actress string `json:actor_actress`
 }
-
-// var albums = []album{
-// 	{Id:"1",Title:"Blue train",Artist:"John Coltrane",Price:45.90},
-// 	{Id:"2",Title:"Muskurane",Artist:"Arijit sing",Price:200.89},
-// 	{Id:"3",Title:"Dark knight",Artist:"Alan Walker",Price:90},
-// }
 
 func main()  {
 	initDB()
@@ -42,17 +38,17 @@ func main()  {
 // }
 
 func getAlbums(c *gin.Context)  {
-	rows, err := db.Query("SELECT id,title,artist,price FROM albums")
+	rows, err := db.Query("SELECT id,title,artist,movie_name,language FROM MusicAlbums")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	var albums []album
+	var albums []MusicAlbum
 	for rows.Next() {
-		var a album
-		err := rows.Scan(&a.Id,&a.Title,&a.Artist,&a.Price)
+		var a MusicAlbum
+		err := rows.Scan(&a.Id,&a.Title,&a.Artist,&a.Movie_name,&a.Language)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()})
 			return
@@ -63,18 +59,19 @@ func getAlbums(c *gin.Context)  {
 }
 
 func createAlbum(c *gin.Context)  {
-	var newAlbum album
-	if err := c.BindJSON(&newAlbum); err != nil {
+	var newAlbum MusicAlbum
+	if err := c.BindJSON(&newAlbum); err != nil { // Its bind the input data to newAlbum in json format
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
-	stmt, err := db.Prepare("INSERT INTO albums (id,title,artist,price) VALUES (?,?,?,?)")
+	stmt, err := db.Prepare("INSERT INTO MusicAlbums (id,title,artist,movie_name,language) VALUES (?,?,?,?,?)")
+	// compiled the sql statement and later use Exec() to execute the the sql statement
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(newAlbum.Id,newAlbum.Title,newAlbum.Artist,newAlbum.Price)
+	_, err = stmt.Exec(newAlbum.Id,newAlbum.Title,newAlbum.Artist,newAlbum.Movie_name,newAlbum.Language) // herer we execuete the sql statement and put the '?' placeholder value
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not insert album"})
 		return
@@ -84,10 +81,10 @@ func createAlbum(c *gin.Context)  {
 }
 
 func getAlbumbyID(c *gin.Context) {
-	var a album
-	id := c.Param("id")
-	err := db.QueryRow("SELECT id,title,artist,price FROM albums WHERE id=?",id).
-					Scan(&a.Id, &a.Title, &a.Artist, &a.Price)
+	var a MusicAlbum
+	id := c.Param("id") // getting the id from request url
+	err := db.QueryRow("SELECT id,title,artist,movie_name,language FROM MusicAlbums WHERE id=?",id).
+					Scan(&a.Id, &a.Title, &a.Artist, &a.Movie_name, &a.Language)
 	if err != nil {
 		c.JSON(http.StatusNotFound,gin.H{"message":"album not found"})
 		return
@@ -99,14 +96,15 @@ func getAlbumbyID(c *gin.Context) {
 }	
 
 func updateAlbum(c *gin.Context)  {
-	var newAlbum album
-	id := c.Param("id")
-	if err := c.BindJSON(&newAlbum); err != nil {
+	var newAlbum MusicAlbum
+	id := c.Param("id") // getting the id from request url
+	if err := c.BindJSON(&newAlbum); err != nil { // parse the json request body into newAlbum
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
-	var existing album
-	err := db.QueryRow("SELECT id,title,artist,price FROM albums WHERE id=?",id).Scan(&existing.Id,&existing.Title,&existing.Artist,&existing.Price)
+	var existing MusicAlbum
+	err := db.QueryRow("SELECT id,title,artist,movie_name,language FROM MusicAlbums WHERE id=?",id).Scan(&existing.Id,&existing.Title,&existing.Artist,&existing.Movie_name,&existing.Language)
+	//current values of albums with the given id are scan into exisiting album
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Album not found"})
 		return
@@ -117,17 +115,21 @@ func updateAlbum(c *gin.Context)  {
 	if newAlbum.Artist != "" {
 		existing.Artist = newAlbum.Artist
 	}
-	if newAlbum.Price != 0 {
-		existing.Price = newAlbum.Price
+	if newAlbum.Movie_name != "" {
+		existing.Movie_name = newAlbum.Movie_name
 	}
+	if newAlbum.Language != "" {
+		existing.Language = newAlbum.Language
+	}
+	
 
-	stmt, err := db.Prepare("UPDATE albums SET title=?,artist=?,price=? WHERE id=?")
+	stmt, err := db.Prepare("UPDATE MusicAlbums SET title=?,artist=?,movie_name=?,language=? WHERE id=?")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(existing.Title,existing.Artist,existing.Price,id)
+	_, err = stmt.Exec(existing.Title,existing.Artist,existing.Movie_name,existing.Language,id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
 		return
@@ -137,18 +139,18 @@ func updateAlbum(c *gin.Context)  {
 
 func deleteAlbum(c *gin.Context)  {
 	id := c.Param("id")
-	stmt, err := db.Prepare("DELETE FROM albums WHERE id=?")
+	stmt, err := db.Prepare("DELETE FROM MusicAlbums WHERE id=?")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
 		return
 	}
 	defer stmt.Close()
-	res, err := stmt.Exec(id)
+	rows, err := stmt.Exec(id) //rows is a result object containing metadata
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
 		return
 	}
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, _ := rows.RowsAffected()// return how many rows are affected after deletion
 	if rowsAffected == 0 {
 		c.JSON(http.StatusNotFound,gin.H{"message":"Album not found"})
 		return
